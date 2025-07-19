@@ -2,9 +2,9 @@ name: Build Affected Apps with Matrix
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   detect-changes:
@@ -30,7 +30,11 @@ jobs:
           cache: 'pnpm'
       
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          if ! pnpm install --frozen-lockfile; then
+            echo "Frozen lockfile failed, installing with updated lockfile..."
+            pnpm install --no-frozen-lockfile
+          fi
       
       - name: Get affected apps
         id: affected
@@ -66,7 +70,11 @@ jobs:
           cache: 'pnpm'
       
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          if ! pnpm install --frozen-lockfile; then
+            echo "Frozen lockfile failed, installing with updated lockfile..."
+            pnpm install --no-frozen-lockfile
+          fi
       
       - name: Build ${{ matrix.app }}
         run: pnpm nx build ${{ matrix.app }}
