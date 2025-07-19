@@ -2,9 +2,9 @@ name: Build Affected Apps with Matrix
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 jobs:
   detect-changes:
