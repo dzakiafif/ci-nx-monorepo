@@ -17,6 +17,35 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref }}
+      
+      - name: Fetch base branch  
+        run: |
+          # Fetch the base branch for comparison
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+          else
+            git fetch origin main:main 2>/dev/null || git fetch origin master:master || true
+          fi
+          ref: ${{ github.head_ref }}
+      
+      - name: Fetch base branch
+        run: |
+          # Fetch the base branch for comparison
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+            echo "BASE_BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
+          else
+            git fetch origin main:main 2>/dev/null || git fetch origin master:master || true
+            # Set base branch based on what exists
+            if git show-ref --verify --quiet refs/heads/main; then
+              echo "BASE_BRANCH=main" >> $GITHUB_ENV
+            elif git show-ref --verify --quiet refs/heads/master; then
+              echo "BASE_BRANCH=master" >> $GITHUB_ENV
+            else
+              echo "BASE_BRANCH=HEAD~1" >> $GITHUB_ENV
+            fi
+          fi
       
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -39,14 +68,22 @@ jobs:
       - name: Get affected apps
         id: affected
         run: |
-          # Get affected apps and format as JSON array
-          AFFECTED_APPS=$(pnpm nx show projects --affected --type=app --json 2>/dev/null || echo "[]")
-          if [ "$AFFECTED_APPS" = "[]" ] || [ -z "$AFFECTED_APPS" ]; then
-            # Fallback: get all apps if no affected apps found
-            AFFECTED_APPS=$(pnpm nx show projects --type=app --json 2>/dev/null || echo "[]")
+          set -e
+          
+          # Get affected projects with proper base branch
+          AFFECTED_OUTPUT=$(pnpm nx show projects --affected --type=app --base=$BASE_BRANCH 2>/dev/null || echo "")
+          
+          if [ -z "$AFFECTED_OUTPUT" ]; then
+            echo "No affected apps found, will build all apps"
+            ALL_APPS=$(pnpm nx show projects --type=app --json 2>/dev/null || echo "[]")
+            echo "apps=$ALL_APPS" >> $GITHUB_OUTPUT
+            echo "All apps: $ALL_APPS"
+          else
+            # Convert to JSON array
+            AFFECTED_APPS=$(echo "$AFFECTED_OUTPUT" | jq -R -s -c 'split("\n") | map(select(. != ""))')
+            echo "apps=$AFFECTED_APPS" >> $GITHUB_OUTPUT
+            echo "Affected apps: $AFFECTED_APPS"
           fi
-          echo "apps=$AFFECTED_APPS" >> $GITHUB_OUTPUT
-          echo "Affected apps: $AFFECTED_APPS"
 
   build:
     runs-on: ubuntu-latest
