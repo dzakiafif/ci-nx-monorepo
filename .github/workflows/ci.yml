@@ -1,103 +1,39 @@
-name: Build Affected Apps with Matrix
-
+name: CI
 on:
-  push:
-    branches: [main, develop]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 jobs:
-  detect-changes:
+  test:
     runs-on: ubuntu-latest
-    outputs:
-      affected-apps: ${{ steps.affected.outputs.apps }}
-    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9  # or your preferred version
       
       - name: Install dependencies
         run: |
-          if ! pnpm install --frozen-lockfile; then
-            echo "Frozen lockfile failed, installing with updated lockfile..."
-            pnpm install --no-frozen-lockfile
-          fi
-      
-      - name: Get affected apps
-        id: affected
-        run: |
-          set -e
-          
-          # Check if there are any changes first
-          if git diff --quiet HEAD~1 HEAD; then
-            echo "No changes detected, building all apps"
-            ALL_APPS=$(pnpm nx show projects --type=app --json 2>/dev/null || echo "[]")
-            echo "apps=$ALL_APPS" >> $GITHUB_OUTPUT
-            echo "All apps: $ALL_APPS"
+          if pnpm install --frozen-lockfile; then
+            echo "Lockfile is up to date"
           else
-            # Get affected projects
-            AFFECTED_OUTPUT=$(pnpm nx show projects --affected --type=app 2>/dev/null || echo "")
-            
-            if [ -z "$AFFECTED_OUTPUT" ]; then
-              echo "No affected apps found, building all apps"
-              ALL_APPS=$(pnpm nx show projects --type=app --json 2>/dev/null || echo "[]")
-              echo "apps=$ALL_APPS" >> $GITHUB_OUTPUT
-              echo "All apps: $ALL_APPS"
-            else
-              # Convert to JSON array
-              AFFECTED_APPS=$(echo "$AFFECTED_OUTPUT" | jq -R -s -c 'split("\n") | map(select(. != ""))')
-              echo "apps=$AFFECTED_APPS" >> $GITHUB_OUTPUT
-              echo "Affected apps: $AFFECTED_APPS"
-            fi
-          fi
-
-  build:
-    runs-on: ubuntu-latest
-    needs: detect-changes
-    if: needs.detect-changes.outputs.affected-apps != '[]'
-    strategy:
-      matrix:
-        app: ${{ fromJson(needs.detect-changes.outputs.affected-apps) }}
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-      
-      - name: Install dependencies
-        run: |
-          if ! pnpm install --frozen-lockfile; then
-            echo "Frozen lockfile failed, installing with updated lockfile..."
+            echo "Lockfile is outdated, installing without frozen lockfile"
             pnpm install --no-frozen-lockfile
           fi
       
-      - name: Build ${{ matrix.app }}
-        run: pnpm nx build ${{ matrix.app }}
-      
-      - name: Test ${{ matrix.app }}
-        run: pnpm nx test ${{ matrix.app }}
+      - name: Run affected tests
+        run: |
+          pnpm nx affected -t test --base=origin/main --head=${{ github.event.pull_request.head.sha }}
+
+      - name: Run affected build  
+        run: |
+          pnpm nx affected -t build --base=origin/main --head=${{ github.event.pull_request.head.sha }}
