@@ -8,6 +8,18 @@
     },
     {
       "path": "./apps/shell"
+    },
+    {
+      "path": "./apps/vehicles-e2e"
+    },
+    {
+      "path": "./apps/vehicles"
+    },
+    {
+      "path": "./apps/vendors-e2e"
+    },
+    {
+      "path": "./apps/vendors"
     }
   ]
 }
