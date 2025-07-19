@@ -32,8 +32,8 @@ jobs:
       
       - name: Run affected tests
         run: |
-          pnpm nx affected -t test --base=origin/main --head=${{ github.head_ref }}
-      
-      - name: Run affected build
+          pnpm nx affected -t test --base=origin/main --head=${{ github.event.pull_request.head.sha }}
+
+      - name: Run affected build  
         run: |
-          pnpm nx affected -t build --base=origin/main --head=${{ github.head_ref }}
+          pnpm nx affected -t build --base=origin/main --head=${{ github.event.pull_request.head.sha }}
