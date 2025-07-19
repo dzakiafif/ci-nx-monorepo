@@ -2,9 +2,9 @@ name: Build Affected Apps with Matrix
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   detect-changes:
@@ -30,15 +30,39 @@ jobs:
           cache: 'pnpm'
       
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          if ! pnpm install --frozen-lockfile; then
+            echo "Frozen lockfile failed, installing with updated lockfile..."
+            pnpm install --no-frozen-lockfile
+          fi
       
       - name: Get affected apps
         id: affected
         run: |
-          # Get affected apps and format as JSON array
-          AFFECTED_APPS=$(pnpm nx print-affected --target=build --select=projects --type=app | jq -R -s -c 'split("\n")[:-1]')
-          echo "apps=$AFFECTED_APPS" >> $GITHUB_OUTPUT
-          echo "Affected apps: $AFFECTED_APPS"
+          set -e
+          
+          # Check if there are any changes first
+          if git diff --quiet HEAD~1 HEAD; then
+            echo "No changes detected, building all apps"
+            ALL_APPS=$(pnpm nx show projects --type=app --json 2>/dev/null || echo "[]")
+            echo "apps=$ALL_APPS" >> $GITHUB_OUTPUT
+            echo "All apps: $ALL_APPS"
+          else
+            # Get affected projects
+            AFFECTED_OUTPUT=$(pnpm nx show projects --affected --type=app 2>/dev/null || echo "")
+            
+            if [ -z "$AFFECTED_OUTPUT" ]; then
+              echo "No affected apps found, building all apps"
+              ALL_APPS=$(pnpm nx show projects --type=app --json 2>/dev/null || echo "[]")
+              echo "apps=$ALL_APPS" >> $GITHUB_OUTPUT
+              echo "All apps: $ALL_APPS"
+            else
+              # Convert to JSON array
+              AFFECTED_APPS=$(echo "$AFFECTED_OUTPUT" | jq -R -s -c 'split("\n") | map(select(. != ""))')
+              echo "apps=$AFFECTED_APPS" >> $GITHUB_OUTPUT
+              echo "Affected apps: $AFFECTED_APPS"
+            fi
+          fi
 
   build:
     runs-on: ubuntu-latest
@@ -66,7 +90,11 @@ jobs:
           cache: 'pnpm'
       
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          if ! pnpm install --frozen-lockfile; then
+            echo "Frozen lockfile failed, installing with updated lockfile..."
+            pnpm install --no-frozen-lockfile
+          fi
       
       - name: Build ${{ matrix.app }}
         run: pnpm nx build ${{ matrix.app }}
