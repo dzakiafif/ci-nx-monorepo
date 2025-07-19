@@ -39,30 +39,14 @@ jobs:
       - name: Get affected apps
         id: affected
         run: |
-          set -e
-          
-          # Check if there are any changes first
-          if git diff --quiet HEAD~1 HEAD; then
-            echo "No changes detected, building all apps"
-            ALL_APPS=$(pnpm nx show projects --type=app --json 2>/dev/null || echo "[]")
-            echo "apps=$ALL_APPS" >> $GITHUB_OUTPUT
-            echo "All apps: $ALL_APPS"
-          else
-            # Get affected projects
-            AFFECTED_OUTPUT=$(pnpm nx show projects --affected --type=app 2>/dev/null || echo "")
-            
-            if [ -z "$AFFECTED_OUTPUT" ]; then
-              echo "No affected apps found, building all apps"
-              ALL_APPS=$(pnpm nx show projects --type=app --json 2>/dev/null || echo "[]")
-              echo "apps=$ALL_APPS" >> $GITHUB_OUTPUT
-              echo "All apps: $ALL_APPS"
-            else
-              # Convert to JSON array
-              AFFECTED_APPS=$(echo "$AFFECTED_OUTPUT" | jq -R -s -c 'split("\n") | map(select(. != ""))')
-              echo "apps=$AFFECTED_APPS" >> $GITHUB_OUTPUT
-              echo "Affected apps: $AFFECTED_APPS"
-            fi
+          # Get affected apps and format as JSON array
+          AFFECTED_APPS=$(pnpm nx show projects --affected --type=app --json 2>/dev/null || echo "[]")
+          if [ "$AFFECTED_APPS" = "[]" ] || [ -z "$AFFECTED_APPS" ]; then
+            # Fallback: get all apps if no affected apps found
+            AFFECTED_APPS=$(pnpm nx show projects --type=app --json 2>/dev/null || echo "[]")
           fi
+          echo "apps=$AFFECTED_APPS" >> $GITHUB_OUTPUT
+          echo "Affected apps: $AFFECTED_APPS"
 
   build:
     runs-on: ubuntu-latest
