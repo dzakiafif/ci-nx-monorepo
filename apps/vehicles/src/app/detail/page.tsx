@@ -1,6 +1,6 @@
 const Detail = () => {
     return (
-        <div>ini page detail vehicles</div>
+        <div>ini page detail</div>
     )
 }
 
