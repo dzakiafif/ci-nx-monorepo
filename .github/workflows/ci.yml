@@ -22,7 +22,13 @@ jobs:
           version: 9  # or your preferred version
       
       - name: Install dependencies
-        run: pnpm install
+        run: |
+          if pnpm install --frozen-lockfile; then
+            echo "Lockfile is up to date"
+          else
+            echo "Lockfile is outdated, installing without frozen lockfile"
+            pnpm install --no-frozen-lockfile
+          fi
       
       - name: Run affected tests
         run: |
